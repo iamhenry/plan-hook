@@ -17,11 +17,12 @@ Claude Code’s **Plan Mode** lets the assistant draft a detailed implementation
 
 ## Required Hooks and Events
 
-Claude Code supports **user-defined hooks** that run at specific lifecycle events. We’ll use three hook events for this automation:
+Claude Code supports **user-defined hooks** that run at specific lifecycle events. We'll use these hook events for this automation:
 
-1. **PreToolUse** – Runs *before* Claude executes a tool (after you’ve granted permission if needed). We will use this to detect the **first action after plan approval** and create `plan.md`.
-2. **PostToolUse** – Runs *after* a tool completes successfully. We’ll hook this to update the to-do list in `plan.md` after each task (file edit, write, or command) is done.
-3. **Stop** – Runs when Claude finishes responding (i.e. when all tasks are done and Claude’s output ends). We’ll use this event to archive the completed plan.
+1. **PostToolUse on exit_plan_mode** – Runs *after* the `exit_plan_mode` tool completes, which happens when Claude presents a plan. We use this to mark that a plan was presented (but not yet approved).
+2. **PreToolUse on work tools** – Runs *before* the first actual work tool executes. We check if a plan was presented AND no plan.md exists, then generate plan.md from the approved plan.
+3. **PostToolUse on work tools** – Runs *after* task execution tools complete successfully. We'll hook this to update the to-do list in `plan.md` after each task and check for completion.
+4. **Immediate archiving** – When all tasks are marked complete (✅), the plan is archived immediately during the update phase, not at session end.
 
 These hooks give us reliable, automatic triggers in the CLI workflow, rather than relying on the AI to remember to update files. We will configure them in Claude’s settings so they execute deterministically at those points.
 
