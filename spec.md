@@ -80,7 +80,7 @@ This means **before** executing any Edit/Write/Bash, run our `plan_hook.sh init`
   `- [ ] Create dark mode toggle component in settings page`
   `- [ ] Add state management for dark mode`
   `- [ ] Run tests to verify functionality`
-  All tasks start unchecked (`[ ]`). This will be the initial content in `plan.md`.
+  All tasks start unchecked (`[ ]`). Section headings use status emojis (⏳🚧✅) while individual tasks use checkboxes. This will be the initial content in `plan.md`.
 * **Write out `plan.md`:** Save the populated template to `outputPlanPath` (e.g. `./plan.md` in the repo). Now we have a file that lists all TODOs from the accepted plan.
 
 By performing this when the first tool runs, we ensure `plan.md` is only created **after plan approval**, not during the planning phase. (Claude itself will not create such a file on its own – in fact, the system discourages the AI from writing docs unless asked, so using a hook is appropriate.)
@@ -149,7 +149,7 @@ Once all tasks are completed, we want to archive the plan for future reference. 
 
 * **Check completion:** It may verify that all tasks are indeed marked done. (For example, open `plan.md` and ensure no `- [ ]` remains, or that all tasks are checked off.) This double-check prevents archiving too early (e.g., if a Stop hook triggered on an intermediate stop – although normally Stop runs at the end of the assistant’s output, we should be sure it’s the final completion, not the end of the plan presentation.) If tasks remain, the script can choose not to archive yet.
 * **Create archive folder:** Ensure the `archiveFolder` exists (create it if not).
-* **Generate filename:** Use the specified `archiveFilenamePattern` to form a name. For example, if the pattern is `<timestamp>-<description>.md`, the script will get the current date-time (e.g. `2025-07-12_09-18-30`) and the brief task description. The `description` might be a user-provided summary of the task or project (for instance, “add-dark-mode”) that was supplied at the start or as a config input. We can incorporate that. For example: `2025-07-12-add-dark-mode-plan.md`.
+* **Generate filename:** Use the specified `archiveFilenamePattern` to form a name. For example, if the pattern is `<timestamp>-<description>.md`, the script will get the current date-time (e.g. `2025-07-12_09-18-30`) and extract the project description from the plan content's title/heading. For example: `2025-07-12-add-dark-mode-plan.md`.
 * **Rename/Move file:** Rename `plan.md` to the new filename and move it into `archiveFolder`. This could be as simple as a shell `mv plan.md archives/2025-07-12-add-dark-mode.md`. After this, the current `plan.md` is gone (moved), which signals that the active plan is completed. Future runs will create a new plan.md for new tasks.
 * (Optional) **Logging:** We might log this archive action or maintain an index (maybe append a line to an archive log file with the timestamp and description). This wasn’t explicitly requested, but could be useful for record-keeping.
 
@@ -185,7 +185,17 @@ Alternatively, we could configure hooks via the CLI UI: using the `/hooks` slash
 
 Finally, test the setup: Run a sample plan in Claude Code (in a safe environment) and ensure that after accepting the plan, `plan.md` appears with the correct content, tasks get checked off as Claude works, and at the end the file is moved to archives with the expected name. Adjust any file paths or patterns as needed.
 
-## Summary of What’s Needed
+## Implementation Decisions
+
+Based on analysis, the following implementation choices have been made:
+
+* **Project Naming:** Extract project description automatically from LLM plan content
+* **Task Completion:** Use simple sequential detection - mark first uncompleted task when tools execute
+* **Archive Structure:** Extract title from plan content for meaningful archive filenames
+* **Task Format:** Use checkboxes `[ ]`/`[x]` for individual tasks, emojis (⏳🚧✅) for section headings
+* **Error Handling:** Apply best judgment with graceful degradation and sensible defaults
+
+## Summary of What's Needed
 
 * **Claude Code Hooks:** Utilize `PreToolUse`, `PostToolUse`, and `Stop` events to inject our automation at the right moments. This gives us deterministic control over creating, updating, and finalizing the plan file.
 * **Template File:** A Markdown template with predefined structure for the plan. The hook will fill in the dynamic TODO list using this template.
@@ -196,7 +206,7 @@ Finally, test the setup: Run a sample plan in Claude Code (in a safe environment
   * Archiving the `plan.md` (after completion).
 * **Project Settings Config:** Define the hooks in `.claude/settings.json` (or via `/hooks`). Make sure to include any necessary matcher patterns and that the commands point to the correct script location. For example, use regex matchers for multiple tools or list multiple hook entries as needed.
 * **Environment & Paths:** Plan out how the script knows `templatePath`, `archiveFolder`, and the archive naming. These can be hard-coded in the script or passed as env vars in the hook command. Also ensure the archive directory exists or is created by the script.
-* **Testing & Security:** Since hooks run with your user permissions without confirmation, double-check that the scripts won’t do anything unintended. Limit their scope to the project directory (especially for file moves). Also, handle error cases: e.g., if the template file is missing, the init script should abort with a clear error (so Claude can report it if exit code 2 is used). If a user cancels the process mid-way, be aware some hooks (Stop) might not fire (Stop doesn’t run on user interrupt). But that’s acceptable here.
+* **Error Handling:** Apply best judgment for graceful degradation - handle missing files, parsing errors, and edge cases with sensible defaults.
 
 By gathering all this information and setting up the hooks accordingly, we’ll have a robust automation: as soon as you approve Claude’s plan, the `plan.md` appears (populated with the tasks from Claude’s plan), it stays up-to-date as Claude works through each step, and when done, it’s neatly archived with a timestamp and description for future reference. This spares us from having to manually track the plan and gives persistent documentation of what was implemented.
 
