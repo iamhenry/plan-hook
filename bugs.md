@@ -1,0 +1,3 @@
+- [ ] seems like it's creating a new plan.md EVERY time it write to file (needs investagation and testing)
+- [ ] currently slow because its waiting for claude cli in headless mode to generate the full plan.md (takes time) and blocks the main chat so it cant proceed to working on the tasks
+  - [ ] we need to ensure there are no timing issues. previous approach i tried would have the items out of sync. it had past todos from previous plans which was incorrect. (i revertd and current version does not do this, it's just slow)
