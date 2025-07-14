@@ -1,5 +1,27 @@
 {
   "permissions": {
-    "defaultMode": "plan"
+    "defaultMode": "plan",
+    "allow": [],
+    "deny": [
+      "Bash(rm:*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "exit_plan_mode",
+        "hooks": [{"type": "command", "command": "/Users/henry/Desktop/Projects/Tools/plan-hook/plan-hook.sh"}]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [{"type": "command", "command": "/Users/henry/Desktop/Projects/Tools/plan-hook/file-modification-hook.sh"}]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "TodoWrite",
+        "hooks": [{"type": "command", "command": "/Users/henry/Desktop/Projects/Tools/plan-hook/todowrite-hook.sh"}]
+      }
+    ]
   }
 }
