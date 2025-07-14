@@ -40,8 +40,8 @@ Brief description of what needs to be accomplished
 ### ✅ Task 1: [Completed task title]
 Status: COMPLETED
 Details: What a junior dev needs to know
-- Sub-task 1
-- Sub-task 2
+- [x] Sub-task 1
+- [x] Sub-task 2
 Files Modified: list of files
 Testing: How to verify completion
 
@@ -58,6 +58,8 @@ Testing Strategy: How to test this task
 ### ⏳ Task 3: [Pending task title]
 Status: PENDING
 Details: Clear implementation guidance
+- [ ] Sub-task 1
+- [ ] Sub-task 2
 Dependencies: Task 2 completion
 Acceptance Criteria: Definition of done
 ```
