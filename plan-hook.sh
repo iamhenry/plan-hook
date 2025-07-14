@@ -29,18 +29,7 @@ if [[ -z "$PLAN_CONTENT" || "$PLAN_CONTENT" == "null" ]]; then
     exit 0
 fi
 
-# No temp file needed - TodoWrite hook will read from transcript
-
-# Create simple plan.md with timestamp (will be enhanced by TodoWrite hook)
-TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
-cat > plan.md << EOF
-# Plan Captured: $TIMESTAMP
-
-$PLAN_CONTENT
-
----
-*Plan content captured by exit_plan_mode hook. Will be formatted by TodoWrite hook.*
-EOF
+# Plan data captured - will be read from transcript by file-modification-hook
 
 echo "✅ Captured plan content: $PLAN_CONTENT" >&2
-echo "✅ Created initial plan.md - TodoWrite hook will read from transcript" >&2
+echo "✅ Plan data available in transcript - waiting for file modification to generate plan.md" >&2

@@ -1,7 +1,6 @@
 #!/bin/bash
 
 # TodoWrite Hook - Detects plan execution start via TodoWrite patterns
-LOG_FILE="/Users/henry/Desktop/Projects/Tools/plan-hook/todowrite-debug.log"
 
 # Function to extract plan content from transcript file
 extract_plan_from_transcript() {
@@ -9,7 +8,7 @@ extract_plan_from_transcript() {
     
     # Validate input
     if [[ ! -f "$transcript_path" ]]; then
-        echo "Error: Transcript file not found: $transcript_path" >> "$LOG_FILE"
+        echo "Error: Transcript file not found: $transcript_path" >&2
         return 1
     fi
     
@@ -60,7 +59,7 @@ update_task_checkboxes() {
     local task_section_end=$(tail -n +$((task_section_start + 1)) "$plan_file" | grep -n "^### " | head -1 | cut -d: -f1)
     
     if [[ -z "$task_section_start" ]]; then
-        echo "Could not find task section for: $task_content" >> "$LOG_FILE"
+        echo "Could not find task section for: $task_content" >&2
         return 1
     fi
     
@@ -75,7 +74,7 @@ update_task_checkboxes() {
     local checkbox_lines=$(sed -n "${task_section_start},${task_section_end}p" "$plan_file" | grep -n "^- \[\|^  - \[" | cut -d: -f1)
     
     if [[ -z "$checkbox_lines" ]]; then
-        echo "No checkboxes found in task section: $task_content" >> "$LOG_FILE"
+        echo "No checkboxes found in task section: $task_content" >&2
         return 0
     fi
     
@@ -114,7 +113,7 @@ update_task_checkboxes() {
     done
     
     rm -f "$plan_file.bak"
-    echo "Updated $total_checkboxes checkboxes for task: $task_content -> $task_status" >> "$LOG_FILE"
+    echo "Updated $total_checkboxes checkboxes for task: $task_content -> $task_status" >&2
     return 0
 }
 
@@ -127,7 +126,7 @@ update_task_statuses() {
     local new_todos=$(echo "$tool_params" | jq -r '.tool_response.newTodos // []' 2>/dev/null)
     
     if [[ -z "$new_todos" || "$new_todos" == "null" ]]; then
-        echo "Failed to parse new todos for status update" >> "$LOG_FILE"
+        echo "Failed to parse new todos for status update" >&2
         return 1
     fi
     
@@ -159,25 +158,16 @@ update_task_statuses() {
                 # Update checkboxes based on task status
                 update_task_checkboxes "$plan_file" "$task_content" "$task_status"
                 
-                echo "Updated task: $task_content -> $status_text" >> "$LOG_FILE"
+                echo "Updated task: $task_content -> $status_text" >&2
             fi
         fi
     done
     
-    echo "✅ Updated task statuses in plan.md" >> "$LOG_FILE"
+    echo "✅ Updated task statuses in plan.md" >&2
     return 0
 }
 
-# Log all TodoWrite activity and environment variables
-{
-    echo "=== TodoWrite Hook Triggered: $(date) ==="
-    echo "CLAUDE_TOOL_NAME: ${CLAUDE_TOOL_NAME:-not_set}"
-    echo "CLAUDE_TOOL_PARAMS: ${CLAUDE_TOOL_PARAMS:-not_set}"
-    echo "All environment variables with CLAUDE or TOOL:"
-    env | grep -i -E "(claude|tool)" || echo "No CLAUDE/TOOL env vars found"
-    echo "Command line arguments: $*"
-    echo "---"
-} >> "$LOG_FILE"
+# TodoWrite Hook - Process tool parameters
 
 # Basic plan detection - look for multiple high priority todos
 # Try to get tool params from environment variable, command line args, or stdin
@@ -197,31 +187,27 @@ if [[ -n "$TOOL_PARAMS" ]]; then
     HIGH_PRIORITY=$(echo "$TOOL_PARAMS" | grep -o '"priority":"high"' | wc -l)
     IN_PROGRESS=$(echo "$TOOL_PARAMS" | grep -o '"status":"in_progress"' | wc -l)
     
-    {
-        echo "Using tool params: $TOOL_PARAMS"
-        echo "Todo count: $TODO_COUNT"
-        echo "High priority: $HIGH_PRIORITY" 
-        echo "In progress: $IN_PROGRESS"
-    } >> "$LOG_FILE"
+    # Debug info to stderr
+    echo "Todo count: $TODO_COUNT, High priority: $HIGH_PRIORITY, In progress: $IN_PROGRESS" >&2
     
     # Check if plan.md exists and if this is a status-only change
     PLAN_FILE="/Users/henry/Desktop/Projects/Tools/plan-hook/plan.md"
     if [[ -f "$PLAN_FILE" && $(is_status_only_change "$TOOL_PARAMS") == "true" ]]; then
-        echo "Status-only change detected - performing incremental update" >> "$LOG_FILE"
+        echo "Status-only change detected - performing incremental update" >&2
         
         # Perform incremental update
         if update_task_statuses "$TOOL_PARAMS"; then
-            echo "✅ Incremental update completed successfully" >> "$LOG_FILE"
+            echo "✅ Incremental update completed successfully" >&2
             exit 0
         else
-            echo "⚠️  Incremental update failed, falling back to full regeneration" >> "$LOG_FILE"
+            echo "⚠️  Incremental update failed, falling back to full regeneration" >&2
             # Fall through to full regeneration
         fi
     fi
     
     # Full regeneration logic: 3+ todos with high priority suggests plan execution start
     if [[ $TODO_COUNT -ge 3 && $HIGH_PRIORITY -ge 2 ]]; then
-        echo "Plan execution detected - generating enhanced plan.md" >> "$LOG_FILE"
+        echo "Plan execution detected - generating enhanced plan.md" >&2
         
         # Extract plan content from transcript file
         PLAN_CONTENT=""
@@ -229,9 +215,9 @@ if [[ -n "$TOOL_PARAMS" ]]; then
         
         if [[ -n "$TRANSCRIPT_PATH" && "$TRANSCRIPT_PATH" != "empty" ]]; then
             PLAN_CONTENT=$(extract_plan_from_transcript "$TRANSCRIPT_PATH")
-            echo "Found plan content from transcript: $PLAN_CONTENT" >> "$LOG_FILE"
+            echo "Found plan content from transcript: $PLAN_CONTENT" >&2
         else
-            echo "No transcript path found in tool params" >> "$LOG_FILE"
+            echo "No transcript path found in tool params" >&2
         fi
         
         # Extract plan title (first line or default)
@@ -246,11 +232,75 @@ if [[ -n "$TOOL_PARAMS" ]]; then
         # Generate enhanced plan.md using Claude integration
         TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
         
-        # Read template content for Claude prompt
-        TEMPLATE_CONTENT=""
-        if [[ -f "/Users/henry/Desktop/Projects/Tools/plan-hook/plan-task-template.md" ]]; then
-            TEMPLATE_CONTENT=$(cat "/Users/henry/Desktop/Projects/Tools/plan-hook/plan-task-template.md")
-        fi
+        # Embedded template content for Claude prompt
+        TEMPLATE_CONTENT=$(cat << 'EOF'
+### Planning and Task Management
+
+### Plan Documentation Protocol
+When implementing complex features or multi-step tasks:
+1. ALWAYS create a `plan.md` file in the project root
+2. Structure tasks with sufficient detail for junior developers
+3. Use recursive completion tracking as work progresses
+4. Integrate with TodoWrite tool for active session management
+
+#### Task Detail Requirements
+Each task MUST include:
+- Clear objective a junior developer can understand
+- Step-by-step implementation guidance
+- Expected file modifications
+- Dependencies and prerequisites
+- Testing strategy and acceptance criteria
+- Time estimation where applicable
+
+#### Progress Tracking Protocol
+- Update task status immediately upon completion: ⏳ → 🚧 → ✅
+- Mark sub-tasks with checkboxes for granular progress
+- Add completion timestamps and notes
+- Link to related TodoWrite entries for active session tracking
+- Archive completed plan.md files to `/_ai/completed-plans/` directory
+
+#### Integration with TodoWrite
+- Create TodoWrite entries referencing specific plan.md tasks
+- Use consistent task naming: "Plan.md: [Task Title]"
+- Mark TodoWrite items complete when plan.md tasks are finished
+- Maintain bidirectional traceability between tools
+
+#### Plan.md Structure Template
+```markdown
+# [Feature/Task Name] Implementation Plan
+
+## Overview
+Brief description of what needs to be accomplished
+
+## Tasks
+### ✅ Task 1: [Completed task title]
+Status: COMPLETED
+Details: What a junior dev needs to know
+- [x] Sub-task 1
+- [x] Sub-task 2
+Files Modified: list of files
+Testing: How to verify completion
+
+### 🚧 Task 2: [In progress task title]  
+Status: IN PROGRESS
+Details: Step-by-step instructions for implementation
+- [ ] Sub-task 1
+- [ ] Sub-task 2
+- [x] Sub-task 3 (completed)
+Dependencies: What must be done first
+Files to Modify: Expected file changes
+Testing Strategy: How to test this task
+
+### ⏳ Task 3: [Pending task title]
+Status: PENDING
+Details: Clear implementation guidance
+- [ ] Sub-task 1
+- [ ] Sub-task 2
+Dependencies: Task 2 completion
+Acceptance Criteria: Definition of done
+```
+EOF
+)
         
         # Construct comprehensive Claude prompt
         CLAUDE_PROMPT="FORMATTING GUIDE:
@@ -353,20 +403,20 @@ EOF
 
         # Call Claude to generate plan (with fallback to basic template)
         if command -v claude >/dev/null 2>&1; then
-            echo "Calling Claude to generate enhanced plan.md..." >> "$LOG_FILE"
-            if echo "$CLAUDE_PROMPT" | claude --model sonnet --print > /Users/henry/Desktop/Projects/Tools/plan-hook/plan.md 2>>"$LOG_FILE"; then
-                echo "✅ Generated enhanced plan.md with Claude" >> "$LOG_FILE"
+            echo "Calling Claude to generate enhanced plan.md..." >&2
+            if echo "$CLAUDE_PROMPT" | claude --model sonnet --print > /Users/henry/Desktop/Projects/Tools/plan-hook/plan.md 2>&1; then
+                echo "✅ Generated enhanced plan.md with Claude" >&2
             else
-                echo "⚠️  Claude generation failed, falling back to basic template" >> "$LOG_FILE"
+                echo "⚠️  Claude generation failed, falling back to basic template" >&2
                 # Fallback to basic template (existing logic as backup)
                 generate_basic_plan
             fi
         else
-            echo "⚠️  Claude CLI not available, using basic template" >> "$LOG_FILE"
+            echo "⚠️  Claude CLI not available, using basic template" >&2
             # Fallback to basic template
             generate_basic_plan
         fi
         
-        echo "✅ Generated enhanced plan.md with template structure" >> "$LOG_FILE"
+        echo "✅ Generated enhanced plan.md with template structure" >&2
     fi
 fi
